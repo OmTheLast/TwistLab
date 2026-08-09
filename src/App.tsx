@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, Check, ChevronLeft, ChevronRight, Dices, History, Pause, Play, Redo2, RotateCcw, Share2, Sparkles, Undo2 } from 'lucide-react'
+import { ArrowDown, BookOpen, BrainCircuit, Check, ChevronLeft, ChevronRight, Dices, FastForward, History, LoaderCircle, Pause, Play, Redo2, RotateCcw, Share2, Sparkles, Undo2 } from 'lucide-react'
 import { CubeScene, type CubeSceneHandle } from './components/CubeScene'
 import { BASE_MOVES, createScramble, describeMove, inverseMove, parseAlgorithm, type Move } from './lib/notation'
 import { CubeState } from './lib/cube-state'
+import { chunkSolution, solveFromMoves } from './lib/solver'
+import { SOLVE_METHODS } from './data/methods'
 
 const QUICK_ALGORITHMS = [
   { name: 'Sexy move', sequence: "R U R' U'", note: 'The rhythm behind dozens of algorithms.' },
@@ -24,6 +26,11 @@ function App() {
   const [error, setError] = useState('')
   const [isSolved, setIsSolved] = useState(true)
   const [shared, setShared] = useState(false)
+  const [isSolving, setIsSolving] = useState(false)
+  const [solution, setSolution] = useState<Move[]>([])
+  const [solverError, setSolverError] = useState('')
+  const [selectedMethod, setSelectedMethod] = useState(SOLVE_METHODS[0].id)
+  const [selectedPhase, setSelectedPhase] = useState(0)
 
   const parsedMoves = useMemo(() => {
     try {
@@ -103,6 +110,8 @@ function App() {
     setRedoStack([])
     setActiveMove(null)
     setIsSolved(true)
+    setSolution([])
+    setSolverError('')
   }
 
   function scramble() {
@@ -122,6 +131,29 @@ function App() {
     window.setTimeout(() => setShared(false), 1800)
   }
 
+  async function solveCurrentCube() {
+    if (isSolved || history.length === 0 || isSolving || isPlaying) return
+    setIsSolving(true)
+    setSolverError('')
+    setSolution([])
+    try {
+      setSolution(await solveFromMoves(history))
+    } catch {
+      setSolverError('The solver could not interpret this state. Reset and try a face-turn scramble.')
+    } finally {
+      setIsSolving(false)
+    }
+  }
+
+  function loadSequence(sequence: string) {
+    setInput(sequence)
+    setError('')
+    document.querySelector('#simulator')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const method = SOLVE_METHODS.find((candidate) => candidate.id === selectedMethod) ?? SOLVE_METHODS[0]
+  const phase = method.phases[selectedPhase] ?? method.phases[0]
+
   return (
     <main>
       <header className="site-header">
@@ -131,7 +163,8 @@ function App() {
         </a>
         <nav aria-label="Main navigation">
           <a className="nav-active" href="#simulator">Simulator</a>
-          <a href="#notation">Notation</a>
+          <a href="#solver">Solver</a>
+          <a href="#guides">Guides</a>
           <a href="#roadmap">Puzzles</a>
         </nav>
         <a className="status-pill" href="#roadmap"><span /> 3×3 LAB / 001</a>
@@ -204,9 +237,53 @@ function App() {
         </div>
       </section>
 
+      <section className="solver-section" id="solver">
+        <div className="solver-intro">
+          <span className="eyebrow">02 / SOLVER</span>
+          <h2>From chaos<br /><em>to a path.</em></h2>
+          <p>The search engine reads every turn made in the lab and computes a fast route back to solved. It runs locally in your browser.</p>
+          <div className="solver-state">
+            <span>Current state</span>
+            <strong>{isSolved ? 'SOLVED' : `${history.length} TURNS DEEP`}</strong>
+          </div>
+          <button className="solve-button" onClick={() => void solveCurrentCube()} disabled={isSolved || isSolving || isPlaying}>
+            {isSolving ? <><LoaderCircle className="spin" /> Searching the state space</> : <><BrainCircuit /> Solve current cube</>}
+          </button>
+          {solverError && <p className="solver-error">{solverError}</p>}
+        </div>
+        <div className={`solution-sheet ${solution.length ? 'has-solution' : ''}`}>
+          <div className="solution-sheet-head">
+            <span>COMPUTED SEQUENCE</span>
+            <span>{solution.length ? `${solution.length} MOVES` : 'AWAITING SCRAMBLE'}</span>
+          </div>
+          {solution.length ? (
+            <>
+              <div className="solution-steps">
+                {chunkSolution(solution).map((step, index) => (
+                  <div key={`${step.join('-')}-${index}`}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <code>{step.join(' ')}</code>
+                    <small>{index === 0 ? 'Begin here' : index === chunkSolution(solution).length - 1 ? 'Solved state' : 'Continue'}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="solution-actions">
+                <button onClick={() => loadSequence(solution.join(' '))}><FastForward /> Load in simulator</button>
+                <button onClick={() => void playMoves(solution)} disabled={isPlaying}><Play fill="currentColor" /> Play solution</button>
+              </div>
+            </>
+          ) : (
+            <div className="solution-empty">
+              <div className="solver-rings" aria-hidden="true"><i /><i /><i /><BrainCircuit /></div>
+              <p>Scramble the cube in the simulator,<br />then ask the engine for a route home.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="notation-section" id="notation">
         <div className="notation-intro">
-          <span className="eyebrow">02 / NOTATION</span>
+          <span className="eyebrow">03 / NOTATION</span>
           <h2>Every symbol<br /><em>is a gesture.</em></h2>
           <p>Notation is choreography for the cube. Read the letter, understand the face, then feel the direction.</p>
         </div>
@@ -225,7 +302,7 @@ function App() {
       </section>
 
       <section className="algorithms-section">
-        <div className="section-label"><span>03 / FIELD NOTES</span><span>Tap an algorithm to load it</span></div>
+        <div className="section-label"><span>04 / FIELD NOTES</span><span>Tap an algorithm to load it</span></div>
         <h2>Small sequences.<br />Surprising consequences.</h2>
         <div className="algorithm-list">
           {QUICK_ALGORITHMS.map((algorithm, index) => (
@@ -233,6 +310,62 @@ function App() {
               <span>0{index + 1}</span><strong>{algorithm.name}</strong><code>{algorithm.sequence}</code><p>{algorithm.note}</p><ChevronRight />
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="guides-section" id="guides">
+        <div className="guides-header">
+          <span className="eyebrow">05 / METHOD LIBRARY</span>
+          <h2>Different minds.<br /><em>Different routes.</em></h2>
+          <p>There is no single correct way to understand a cube. Choose a method, learn its phases, and send any algorithm directly to the simulator.</p>
+        </div>
+        <div className="method-selector" role="tablist" aria-label="Solving methods">
+          {SOLVE_METHODS.map((item, index) => (
+            <button
+              key={item.id}
+              className={item.id === method.id ? 'active' : ''}
+              onClick={() => { setSelectedMethod(item.id); setSelectedPhase(0) }}
+              role="tab"
+              aria-selected={item.id === method.id}
+            >
+              <span>0{index + 1}</span>
+              <strong>{item.shortName}</strong>
+              <small>{item.level}</small>
+            </button>
+          ))}
+        </div>
+        <div className="method-workbench">
+          <aside className="method-overview">
+            <BookOpen />
+            <span>{method.signature}</span>
+            <h3>{method.name}</h3>
+            <p>{method.description}</p>
+            <div className="phase-progress"><i style={{ width: `${((selectedPhase + 1) / method.phases.length) * 100}%` }} /></div>
+            <small>PHASE {selectedPhase + 1} OF {method.phases.length}</small>
+          </aside>
+          <div className="phase-list">
+            {method.phases.map((item, index) => (
+              <article key={item.title} className={index === selectedPhase ? 'active' : ''}>
+                <button onClick={() => setSelectedPhase(index)} aria-expanded={index === selectedPhase}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{item.title}</strong>
+                  <ChevronRight />
+                </button>
+                {index === selectedPhase && (
+                  <div className="phase-detail">
+                    <span>OBJECTIVE</span>
+                    <h4>{phase.goal}</h4>
+                    <p>{phase.detail}</p>
+                    {phase.algorithms?.map((algorithm) => (
+                      <button className="guide-algorithm" key={algorithm.label} onClick={() => loadSequence(algorithm.moves)}>
+                        <span>{algorithm.label}</span><code>{algorithm.moves}</code><Play size={15} fill="currentColor" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
