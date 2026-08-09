@@ -74,3 +74,23 @@ export function describeMove(move: Move): string {
   const base = move.replace(/[2']/g, '') as MoveBase
   return `${faceNames[base]} · ${direction}`
 }
+
+export function explainMove(move: Move) {
+  const base = move.replace(/[2']/g, '') as MoveBase
+  const labels: Record<MoveBase, string> = {
+    R: 'right face', L: 'left face', U: 'upper face', D: 'bottom face', F: 'front face', B: 'back face',
+    Rw: 'right two layers', Lw: 'left two layers', Uw: 'upper two layers', Dw: 'bottom two layers', Fw: 'front two layers', Bw: 'back two layers',
+    M: 'middle slice', E: 'equator slice', S: 'standing slice', x: 'whole cube on the right axis', y: 'whole cube on the upper axis', z: 'whole cube on the front axis',
+  }
+  const cues: Record<MoveBase, string> = {
+    R: 'Keep the other two vertical layers still.', L: 'Keep the other two vertical layers still.', U: 'Move only the top layer.', D: 'Move only the bottom layer.', F: 'Turn the face pointing toward you.', B: 'Turn the face pointing away from you.',
+    Rw: 'Move the right and middle layers together.', Lw: 'Move the left and middle layers together.', Uw: 'Move the top two layers together.', Dw: 'Move the bottom two layers together.', Fw: 'Move the front two layers together.', Bw: 'Move the back two layers together.',
+    M: 'Turn the centre slice as the left face would turn.', E: 'Turn the horizontal centre slice as the bottom face would turn.', S: 'Turn the standing centre slice as the front face would turn.', x: 'Rotate the entire cube; this changes your viewpoint.', y: 'Rotate the entire cube; this changes your viewpoint.', z: 'Rotate the entire cube; this changes your viewpoint.',
+  }
+  const turn = move.endsWith('2') ? 'by 180°' : move.endsWith("'") ? 'counter-clockwise by 90°' : 'clockwise by 90°'
+  return {
+    title: `Turn the ${labels[base]} ${turn}.`,
+    cue: cues[base],
+    notation: move,
+  }
+}

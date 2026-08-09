@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createScramble, invertAlgorithm, inverseMove, parseAlgorithm } from './notation'
+import { createScramble, explainMove, invertAlgorithm, inverseMove, parseAlgorithm } from './notation'
 
 describe('notation', () => {
   it('parses standard face turns', () => {
@@ -29,5 +29,11 @@ describe('notation', () => {
     const scramble = createScramble(40)
     expect(scramble).toHaveLength(40)
     expect(scramble.every((move, index) => index === 0 || move[0] !== scramble[index - 1][0])).toBe(true)
+  })
+
+  it('explains face, wide, and rotation moves in plain language', () => {
+    expect(explainMove("R'").title).toBe('Turn the right face counter-clockwise by 90°.')
+    expect(explainMove('Fw2').title).toBe('Turn the front two layers by 180°.')
+    expect(explainMove('x').cue).toContain('entire cube')
   })
 })

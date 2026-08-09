@@ -11,6 +11,12 @@ describe('solver', () => {
     expect(new CubeState().applyAll([...scramble, ...solution]).isSolved()).toBe(true)
   }, 30_000)
 
+  it('normalizes a state changed by wide and slice moves', async () => {
+    const scramble = parseAlgorithm("Rw R U F2 M' D L B")
+    const solution = await solveFromMoves(scramble)
+    expect(new CubeState().applyAll([...scramble, ...solution]).isSolved()).toBe(true)
+  }, 30_000)
+
   it('chunks a solution into readable steps', () => {
     const moves = parseAlgorithm("R U R' U' F2 D L")
     expect(chunkSolution(moves, 3).map((chunk) => chunk.length)).toEqual([3, 3, 1])

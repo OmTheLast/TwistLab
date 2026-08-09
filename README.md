@@ -10,6 +10,10 @@ TwistLab is an interactive, browser-based laboratory for learning how twisty puz
 - Scramble, reset, undo, redo, and move history
 - Renderer-independent cube state and solved-state detection
 - Shareable algorithm URLs
+- App-style Simulator, Solver, and Tutorials workspace tabs
+- Move pads for face, wide, slice, and whole-cube turns
+- Personalized step-by-step tutorials for the current scramble
+- Animated next-move playback and manual move confirmation
 - Responsive layouts and reduced-motion support
 
 ## Local development
