@@ -8,9 +8,10 @@ import { CubeScene, type CubeSceneHandle } from './components/CubeScene'
 import { SOLVE_METHODS } from './data/methods'
 import { CubeState } from './lib/cube-state'
 import {
-  createScramble, describeMove, explainMove, inverseMove, parseAlgorithm, type Move,
+  createScramble, describeMove, explainMove, invertAlgorithm, inverseMove, parseAlgorithm, type Move,
 } from './lib/notation'
 import { chunkSolution, solveFromMoves } from './lib/solver'
+import { buildTutorialPlan, GUIDE_TRACKS, type GuideTrack, type TutorialPlan } from './lib/tutorials'
 
 type WorkspaceTab = 'simulate' | 'solve' | 'learn'
 type MoveGroup = 'Faces' | 'Wide' | 'Slices' | 'Rotations'
@@ -49,7 +50,10 @@ function App() {
   const [isSolving, setIsSolving] = useState(false)
   const [solution, setSolution] = useState<Move[]>([])
   const [solverError, setSolverError] = useState('')
-  const [tutorialIndex, setTutorialIndex] = useState(0)
+  const [guideTrack, setGuideTrack] = useState<GuideTrack>('beginner')
+  const [tutorialPlan, setTutorialPlan] = useState<TutorialPlan | null>(null)
+  const [tutorialPhaseIndex, setTutorialPhaseIndex] = useState(0)
+  const [tutorialMoveIndex, setTutorialMoveIndex] = useState(0)
   const [selectedMethod, setSelectedMethod] = useState(SOLVE_METHODS[0].id)
   const [selectedPhase, setSelectedPhase] = useState(0)
 
@@ -57,9 +61,20 @@ function App() {
     try { return parseAlgorithm(input) } catch { return [] }
   }, [input])
   const method = SOLVE_METHODS.find((candidate) => candidate.id === selectedMethod) ?? SOLVE_METHODS[0]
-  const tutorialMove = solution[tutorialIndex]
+  const tutorialPhase = tutorialPlan?.phases[tutorialPhaseIndex]
+  const tutorialMove = tutorialPhase?.moves[tutorialMoveIndex]
   const tutorialInstruction = tutorialMove ? explainMove(tutorialMove) : null
   const solutionSteps = useMemo(() => chunkSolution(solution), [solution])
+  const tutorialTotalMoves = tutorialPlan?.phases.reduce((total, phase) => total + phase.moves.length, 0) ?? 0
+  const tutorialCompletedMoves = tutorialPlan
+    ? tutorialPlan.phases.slice(0, tutorialPhaseIndex).reduce((total, phase) => total + phase.moves.length, 0) + tutorialMoveIndex
+    : 0
+  const tutorialUpcoming = tutorialPlan
+    ? [
+        ...(tutorialPhase?.moves.slice(tutorialMoveIndex + 1) ?? []),
+        ...tutorialPlan.phases.slice(tutorialPhaseIndex + 1).flatMap((phase) => phase.moves),
+      ]
+    : []
 
   useEffect(() => { pausedRef.current = isPaused }, [isPaused])
 
@@ -79,11 +94,17 @@ function App() {
     setActiveMove(null)
   }
 
+  function clearTutorialPlan() {
+    setTutorialPlan(null)
+    setTutorialPhaseIndex(0)
+    setTutorialMoveIndex(0)
+  }
+
   async function playMoves(moves: Move[], preserveTutorial = false) {
     if (!moves.length || isPlaying) return
     if (!preserveTutorial) {
       setSolution([])
-      setTutorialIndex(0)
+      clearTutorialPlan()
     }
     setIsPlaying(true)
     setIsPaused(false)
@@ -109,7 +130,7 @@ function App() {
     if (isPlaying || history.length === 0) return
     const move = history.at(-1)!
     setSolution([])
-    setTutorialIndex(0)
+    clearTutorialPlan()
     setIsPlaying(true)
     await performMove(inverseMove(move), false)
     setHistory((current) => current.slice(0, -1))
@@ -121,7 +142,7 @@ function App() {
     if (isPlaying || redoStack.length === 0) return
     const move = redoStack.at(-1)!
     setSolution([])
-    setTutorialIndex(0)
+    clearTutorialPlan()
     setIsPlaying(true)
     await performMove(move, false)
     setHistory((current) => [...current, move])
@@ -138,7 +159,7 @@ function App() {
     setActiveMove(null)
     setIsSolved(true)
     setSolution([])
-    setTutorialIndex(0)
+    clearTutorialPlan()
     setSolverError('')
   }
 
@@ -146,7 +167,7 @@ function App() {
     const moves = createScramble(20)
     setInput(moves.join(' '))
     setSolution([])
-    setTutorialIndex(0)
+    clearTutorialPlan()
     void playMoves(moves)
   }
 
@@ -161,19 +182,15 @@ function App() {
     window.setTimeout(() => setShared(false), 1800)
   }
 
-  async function solveCurrentCube(openTutorial = false) {
+  async function solveCurrentCube() {
     if (isSolved || history.length === 0 || isSolving || isPlaying) return
     setIsSolving(true)
     setSolverError('')
     setSolution([])
-    setTutorialIndex(0)
+    clearTutorialPlan()
     try {
       const moves = await solveFromMoves(history)
       setSolution(moves)
-      if (openTutorial) {
-        setTutorialMode('guided')
-        setWorkspaceTab('learn')
-      }
     } catch {
       setSolverError('The solver could not interpret this state. Reset the cube and try again.')
     } finally {
@@ -181,14 +198,74 @@ function App() {
     }
   }
 
+  async function buildCurrentTutorial() {
+    if (isSolved || history.length === 0 || isSolving || isPlaying) return
+    setIsSolving(true)
+    setSolverError('')
+    clearTutorialPlan()
+    try {
+      const plan = await buildTutorialPlan(guideTrack, history)
+      setTutorialPlan(plan)
+      setSolution(plan.phases.flatMap((phase) => phase.moves))
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : ''
+      setSolverError(message.includes('fixed cube orientation')
+        ? 'Beginner and CFOP lessons need a fixed viewpoint. Reset, scramble without x/y/z rotations, and try again.'
+        : message || 'This method could not build a lesson for the current state. Reset the cube and try again.')
+    } finally {
+      setIsSolving(false)
+    }
+  }
+
   async function advanceTutorial(count: number, animate = true) {
-    if (!tutorialMove || isPlaying) return
-    const end = Math.min(tutorialIndex + count, solution.length)
-    const moves = solution.slice(tutorialIndex, end)
+    if (!tutorialPlan || !tutorialMove || isPlaying) return
+    let phaseIndex = tutorialPhaseIndex
+    let moveIndex = tutorialMoveIndex
+    let remaining = count
     setIsPlaying(true)
-    for (const move of moves) await performMove(move, true, animate ? 310 / speed : 1)
-    setTutorialIndex(end)
+    while (remaining > 0 && phaseIndex < tutorialPlan.phases.length) {
+      const phase = tutorialPlan.phases[phaseIndex]
+      const move = phase.moves[moveIndex]
+      if (!move) {
+        phaseIndex += 1
+        moveIndex = 0
+        continue
+      }
+      await performMove(move, true, animate ? 310 / speed : 1)
+      moveIndex += 1
+      remaining -= 1
+      if (moveIndex >= phase.moves.length) {
+        phaseIndex += 1
+        moveIndex = 0
+      }
+    }
+    setTutorialPhaseIndex(phaseIndex)
+    setTutorialMoveIndex(moveIndex)
     setIsPlaying(false)
+  }
+
+  function chooseGuideTrack(track: GuideTrack) {
+    setGuideTrack(track)
+    clearTutorialPlan()
+    setSolverError('')
+  }
+
+  function openGuidedTutorial() {
+    setTutorialMode('guided')
+    setWorkspaceTab('learn')
+  }
+
+  function showAlgorithmCase(sequence: string) {
+    if (isPlaying) return
+    reset()
+    setInput(sequence)
+    void playMoves(invertAlgorithm(parseAlgorithm(sequence)))
+  }
+
+  function playAlgorithm(sequence: string) {
+    if (isPlaying) return
+    setInput(sequence)
+    void playMoves(parseAlgorithm(sequence))
   }
 
   function loadSequence(sequence: string) {
@@ -199,7 +276,6 @@ function App() {
 
   function selectWorkspace(tab: WorkspaceTab) {
     setWorkspaceTab(tab)
-    if (tab === 'learn' && solution.length) setTutorialMode('guided')
   }
 
   return (
@@ -275,12 +351,12 @@ function App() {
                   <strong>{isSolved ? 'The cube is already solved.' : `${history.length} recorded moves are ready to analyse.`}</strong>
                   <p>{isSolved ? 'Scramble it in the Simulator tab, then return here.' : 'Compute a sequence, or create a guided tutorial for this exact state.'}</p>
                   <button className="primary-action" onClick={() => void solveCurrentCube()} disabled={isSolved || isSolving || isPlaying}>{isSolving ? <><LoaderCircle className="spin" /> Searching</> : <><BrainCircuit /> Compute solution</>}</button>
-                  {!isSolved && <button className="secondary-action" onClick={() => void solveCurrentCube(true)} disabled={isSolving || isPlaying}><BookOpen /> Build guided tutorial</button>}
+                  {!isSolved && <button className="secondary-action" onClick={openGuidedTutorial} disabled={isSolving || isPlaying}><BookOpen /> Choose tutorial method</button>}
                   {solverError && <p className="inline-error">{solverError}</p>}
                 </div>
               ) : (
                 <div className="solution-panel">
-                  <div className="solution-summary"><div><span>SOLUTION READY</span><strong>{solution.length}</strong><small>MOVES</small></div><button onClick={() => { setTutorialMode('guided'); setWorkspaceTab('learn') }}><BookOpen /> Guided mode</button></div>
+                  <div className="solution-summary"><div><span>SOLUTION READY</span><strong>{solution.length}</strong><small>MOVES</small></div><button onClick={openGuidedTutorial}><BookOpen /> Guided mode</button></div>
                   <div className="solution-list">
                     {solutionSteps.map((step, index) => <div key={`${step.join('-')}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><code>{step.join(' ')}</code></div>)}
                   </div>
@@ -301,26 +377,33 @@ function App() {
               {tutorialMode === 'guided' && (
                 <div className="guided-tutorial">
                   <div className="panel-title"><div><span>GUIDED SOLVE</span><h1>One turn at a time.</h1></div><CircleHelp /></div>
-                  {!solution.length ? (
+                  {!tutorialPlan ? (
                     <div className="tutorial-empty">
                       <span>PERSONALISED TO THE CURRENT STATE</span>
-                      <h2>{isSolved ? 'Scramble the cube first.' : 'Your tutorial is ready to generate.'}</h2>
-                      <p>{isSolved ? 'Use the Simulator tab or the scramble control beside the cube.' : 'We will calculate a route, explain each move in plain language, and keep the virtual cube synchronized.'}</p>
-                      <button className="primary-action" onClick={() => void solveCurrentCube()} disabled={isSolved || isSolving || isPlaying}>{isSolving ? <><LoaderCircle className="spin" /> Preparing lesson</> : <><BookOpen /> Create tutorial</>}</button>
+                      <h2>{isSolved ? 'Scramble the cube first.' : 'How do you want to learn?'}</h2>
+                      <p>{isSolved ? 'Use the Simulator tab or the scramble control beside the cube.' : 'Choose your experience level. The lesson will use that method on the cube exactly as it is now.'}</p>
+                      <div className="guide-track-picker" role="radiogroup" aria-label="Tutorial method">
+                        {GUIDE_TRACKS.map((track) => <button type="button" role="radio" aria-checked={guideTrack === track.id} className={guideTrack === track.id ? 'active' : ''} key={track.id} onClick={() => chooseGuideTrack(track.id)}><span>{track.level}</span><strong>{track.label}</strong><small>{track.description}</small><i><Check /></i></button>)}
+                      </div>
+                      <button className="primary-action" onClick={() => void buildCurrentTutorial()} disabled={isSolved || isSolving || isPlaying}>{isSolving ? <><LoaderCircle className="spin" /> Preparing lesson</> : <><BookOpen /> Build {GUIDE_TRACKS.find((track) => track.id === guideTrack)?.label} lesson</>}</button>
                       {solverError && <p className="inline-error">{solverError}</p>}
                     </div>
-                  ) : tutorialIndex >= solution.length ? (
-                    <div className="tutorial-complete"><Check /><span>LESSON COMPLETE</span><h2>The cube is solved.</h2><p>You completed {solution.length} guided moves from the recorded scramble.</p><button className="secondary-action" onClick={reset}><RotateCcw /> Start again</button></div>
+                  ) : tutorialPhaseIndex >= tutorialPlan.phases.length ? (
+                    <div className="tutorial-complete"><Check /><span>{tutorialPlan.methodName.toUpperCase()} · LESSON COMPLETE</span><h2>The cube is solved.</h2><p>You completed {tutorialTotalMoves} guided moves using the {tutorialPlan.methodName} track.</p><button className="secondary-action" onClick={reset}><RotateCcw /> Start again</button></div>
                   ) : (
                     <div className="tutorial-step">
-                      <div className="tutorial-progress"><i style={{ width: `${(tutorialIndex / solution.length) * 100}%` }} /><span>STEP {tutorialIndex + 1} / {solution.length}</span></div>
+                      <div className="tutorial-method-line"><div><span>METHOD</span><strong>{tutorialPlan.methodName}</strong><small>{tutorialPlan.experience}</small></div><button onClick={() => clearTutorialPlan()}>Change method</button></div>
+                      <p className="tutorial-method-note">{tutorialPlan.note}</p>
+                      <div className="tutorial-progress"><i style={{ width: `${(tutorialCompletedMoves / tutorialTotalMoves) * 100}%` }} /><span>MOVE {tutorialCompletedMoves + 1} / {tutorialTotalMoves}</span></div>
+                      <div className="tutorial-phase-heading"><span>PHASE {tutorialPhaseIndex + 1} / {tutorialPlan.phases.length}</span><h2>{tutorialPhase?.title}</h2><strong>{tutorialPhase?.goal}</strong><p>{tutorialPhase?.explanation}</p></div>
+                      <div className="phase-sequence"><span>THIS PHASE · {tutorialPhase?.moves.length} MOVES</span><div>{tutorialPhase?.moves.map((move, index) => <i className={index === tutorialMoveIndex ? 'active' : index < tutorialMoveIndex ? 'done' : ''} key={`${move}-${index}`}>{move}</i>)}</div></div>
                       <div className="move-focus"><span>NEXT MOVE</span><strong>{tutorialInstruction?.notation}</strong></div>
-                      <h2>{tutorialInstruction?.title}</h2>
-                      <p>{tutorialInstruction?.cue}</p>
+                      <h3>{tutorialInstruction?.title}</h3>
+                      <p className="move-cue">{tutorialInstruction?.cue}</p>
                       <div className="orientation-note"><Rotate3D /><span>Match the simulator’s current viewpoint. “Front” faces you, “upper” is on top, and the highlighted notation is the move to perform.</span></div>
                       <button className="primary-action" onClick={() => void advanceTutorial(1)} disabled={isPlaying}><Play fill="currentColor" /> Play this move</button>
                       <div className="tutorial-actions"><button onClick={() => void advanceTutorial(1, false)} disabled={isPlaying}><Check /> I did it manually</button><button onClick={() => void advanceTutorial(3)} disabled={isPlaying}><SkipForward /> Play next 3</button></div>
-                      <div className="up-next"><span>UP NEXT</span><div>{solution.slice(tutorialIndex + 1, tutorialIndex + 6).map((move, index) => <i key={`${move}-${index}`}>{move}</i>)}</div></div>
+                      <div className="up-next"><span>UP NEXT</span><div>{tutorialUpcoming.slice(0, 5).map((move, index) => <i key={`${move}-${index}`}>{move}</i>)}</div></div>
                     </div>
                   )}
                 </div>
@@ -331,7 +414,7 @@ function App() {
                   <div className="panel-title"><div><span>METHOD LIBRARY</span><h1>Choose your logic.</h1></div><BookOpen /></div>
                   <div className="method-tabs" role="tablist" aria-label="Solving methods">{SOLVE_METHODS.map((item) => <button role="tab" aria-selected={item.id === method.id} className={item.id === method.id ? 'active' : ''} key={item.id} onClick={() => { setSelectedMethod(item.id); setSelectedPhase(0) }}><strong>{item.shortName}</strong><small>{item.level}</small></button>)}</div>
                   <div className="method-intro"><span>{method.signature}</span><h2>{method.name}</h2><p>{method.description}</p></div>
-                  <div className="method-phases">{method.phases.map((phase, index) => <article className={selectedPhase === index ? 'active' : ''} key={phase.title}><button onClick={() => setSelectedPhase(index)} aria-expanded={selectedPhase === index}><span>{String(index + 1).padStart(2, '0')}</span><strong>{phase.title}</strong><ChevronDown /></button>{selectedPhase === index && <div><h3>{phase.goal}</h3><p>{phase.detail}</p>{phase.algorithms?.map((algorithm) => <button className="method-alg" key={algorithm.label} onClick={() => loadSequence(algorithm.moves)}><span>{algorithm.label}</span><code>{algorithm.moves}</code><Play fill="currentColor" /></button>)}</div>}</article>)}</div>
+                  <div className="method-phases">{method.phases.map((phase, index) => <article className={selectedPhase === index ? 'active' : ''} key={phase.title}><button onClick={() => setSelectedPhase(index)} aria-expanded={selectedPhase === index}><span>{String(index + 1).padStart(2, '0')}</span><strong>{phase.title}</strong><ChevronDown /></button>{selectedPhase === index && <div><h3>{phase.goal}</h3><p>{phase.detail}</p>{phase.algorithms?.map((algorithm) => <div className="method-alg-card" key={algorithm.label}><div><span>{algorithm.label}</span><code>{algorithm.moves}</code><small>CASE SETUP · {invertAlgorithm(parseAlgorithm(algorithm.moves)).join(' ')}</small></div><div><button onClick={() => showAlgorithmCase(algorithm.moves)} disabled={isPlaying}><Rotate3D /> Show state</button><button onClick={() => playAlgorithm(algorithm.moves)} disabled={isPlaying}><Play fill="currentColor" /> Play moves</button></div></div>)}</div>}</article>)}</div>
                 </div>
               )}
             </div>
