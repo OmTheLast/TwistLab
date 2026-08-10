@@ -22,7 +22,7 @@ export type TutorialPlan = {
 export const GUIDE_TRACKS: Array<{ id: GuideTrack; label: string; level: string; description: string }> = [
   { id: 'beginner', label: 'Beginner assisted', level: 'First solves', description: 'Plain-language cross, pair, and last-layer guidance with fewer concepts at once.' },
   { id: 'cfop', label: 'CFOP', level: 'Intermediate', description: 'A genuine Cross → F2L → OLL → PLL solution partitioned for the current cube.' },
-  { id: 'fast', label: 'Fast solution', level: 'Follow notation', description: 'A short two-phase route for users who want the cube solved efficiently.' },
+  { id: 'fast', label: 'Direct solution', level: 'Follow notation', description: 'A reliable reverse route built from every turn recorded in this session.' },
 ]
 
 function nonEmpty(phases: TutorialPhase[]) {
@@ -34,10 +34,10 @@ export async function buildTutorialPlan(track: GuideTrack, scramble: Move[]): Pr
     const moves = await solveFromMoves(scramble)
     return {
       track,
-      methodName: 'Two-phase search',
+      methodName: 'Recorded reverse path',
       experience: 'Notation follower',
-      note: 'This route is optimized for move count, not for teaching a human method.',
-      phases: [{ id: 'fast', title: 'Fast route', goal: 'Return the cube to solved.', explanation: 'Follow the computed moves in order. Each move reduces the state along a two-phase search path.', moves }],
+      note: 'This route reverses the recorded turns exactly, making it reliable for face, wide, slice, and rotation moves.',
+      phases: [{ id: 'fast', title: 'Direct route', goal: 'Return the cube to solved.', explanation: 'Follow the moves in order to retrace this session from the current state back to the solved cube.', moves }],
     }
   }
 

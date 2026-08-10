@@ -191,8 +191,9 @@ function App() {
     try {
       const moves = await solveFromMoves(history)
       setSolution(moves)
-    } catch {
-      setSolverError('The solver could not interpret this state. Reset the cube and try again.')
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : ''
+      setSolverError(message || 'The solver could not interpret this state. Reset the cube and try again.')
     } finally {
       setIsSolving(false)
     }
@@ -344,7 +345,7 @@ function App() {
           {workspaceTab === 'solve' && (
             <div className="panel-view solver-panel" key="solve">
               <div className="panel-title"><div><span>STATE SOLVER</span><h1>Find a way home.</h1></div><BrainCircuit /></div>
-              <p className="panel-lede">The search engine reads the exact turns made in this session and calculates a fast solution locally in your browser.</p>
+              <p className="panel-lede">The solver reads every turn made in this session and builds a reliable route back to solved, entirely in your browser.</p>
               {!solution.length ? (
                 <div className="solver-empty">
                   <div className="state-orbit"><i /><i /><BrainCircuit /></div>

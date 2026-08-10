@@ -7,12 +7,12 @@ describe('solver', () => {
   it('solves a tracked 3×3 state', async () => {
     const scramble = parseAlgorithm("R U2 F' L D")
     const solution = await solveFromMoves(scramble)
-    expect(solution.length).toBeGreaterThan(0)
+    expect(solution).toEqual(parseAlgorithm("D' L' F U2 R'"))
     expect(new CubeState().applyAll([...scramble, ...solution]).isSolved()).toBe(true)
   }, 30_000)
 
   it('normalizes a state changed by wide and slice moves', async () => {
-    const scramble = parseAlgorithm("Rw R U F2 M' D L B")
+    const scramble = parseAlgorithm("Rw R U F2 M' D L B x y'")
     const solution = await solveFromMoves(scramble)
     expect(new CubeState().applyAll([...scramble, ...solution]).isSolved()).toBe(true)
   }, 30_000)
