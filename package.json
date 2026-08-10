@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "cubing": "^0.63.3",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "rubiks-cube-solver": "^1.2.0",
     "three": "latest"
   },
   "devDependencies": {
