@@ -1,58 +1,65 @@
-# TwistLab
+<h1 align="center">TwistLab</h1>
 
-TwistLab is an interactive, browser-based laboratory for learning how twisty puzzles move. The first study is a tactile 3×3 cube with animated notation playback, deterministic state tracking, and an editorial learning experience.
+**Play an algorithm on a 3×3 cube and turn the current scramble into a guided solving lesson.**
 
-**[Launch TwistLab](https://ompatnaik.com/TwistLab/)**
+[Demo or published artifacts](https://ompatnaik.com/TwistLab/)
 
-![TwistLab simulator with an interactive 3×3 cube and notation controls](docs/images/twistlab-simulator.jpg)
+WebGL browser app. Node.js and npm for development. Puzzle state is separate from rendering.
 
-## Features
+By Om Patnaik · repository created August 2026.
 
-- Interactive WebGL 3×3 cube with orbit and zoom controls
-- Standard face, wide, slice, and whole-cube notation
-- Animated algorithms with pause and speed controls
-- Scramble, reset, undo, redo, and move history
-- Renderer-independent cube state and solved-state detection
-- Shareable algorithm URLs
-- App-style Simulator, Solver, and Tutorials workspace tabs
-- Move pads for face, wide, slice, and whole-cube turns
-- Personalized step-by-step tutorials for the current scramble
-- Beginner-assisted, CFOP, and fast-solution tutorial tracks
-- Named learning phases with goals, explanations, and state-specific moves
-- Algorithm case setup and animated playback in the method library
-- Animated next-move playback and manual move confirmation
-- Responsive layouts and reduced-motion support
+![TwistLab showing a 3×3 cube, notation controls, and animated algorithm playback](docs/images/twistlab-simulator.jpg)
 
-## Guided learning
+## Install
 
-The current-cube tutorial turns a scramble into a method-aware lesson, beginning with stages such as the white cross and keeping the virtual cube synchronized with every move.
+| Platform / path | Start here |
+| --- | --- |
+| Browser | [Launch TwistLab](https://ompatnaik.com/TwistLab/) |
+| From source | `npm install`, then `npm run dev` |
 
-![Beginner-assisted white-cross tutorial generated for the current cube](docs/images/twistlab-guided-tutorial.jpg)
-
-## Method library
-
-Explore Beginner, CFOP, Roux, and ZZ concepts. Algorithm cards can prepare the example cube state and then animate the moves from that exact case.
-
-![TwistLab method library showing algorithm case setup and playback](docs/images/twistlab-method-library.jpg)
-
-## Local development
+Open the Vite URL, enter an algorithm, and play it one move at a time. Use the live simulator for a no-install trial.
 
 ```bash
-npm install
 npm run dev
 ```
 
-## Verification
+## Why
+
+You can read a cube algorithm without understanding what each move changes. TwistLab combines notation playback with a tracked cube state and lessons tied to the current scramble. The implemented puzzle is the 3×3 cube.
+
+## Follow your current cube
+
+Scramble, undo, redo, and select a tutorial track. Step through white-cross and later learning phases while the virtual cube follows the moves.
+
+## Try a method case
+
+Browse Beginner, CFOP, Roux, and ZZ concepts. Prepare a card’s example state, animate its algorithm, and share an algorithm URL.
+
+## Notes from building it
+
+I separated cube state from rendering so moves can be checked without WebGL. The tutorial workflow uses that state to keep the lesson tied to the actual scramble. I would extend the same checks before adding another puzzle.
+
+## Commands
+
+```bash
+npm run dev                     # start the simulator
+npm run test                    # check notation, cube state, and solver
+npm run lint                    # lint source
+npm run build                   # type-check and build
+```
+
+## Verify it yourself
 
 ```bash
 npm run test
-npm run build
 npm run lint
+npm run build
 ```
 
-## Roadmap
+Tests cover notation, deterministic cube state, and solver behaviour. Browser animation, touch controls, and guided playback also need a manual check; passing state tests does not prove every interaction.
 
-- Timeline scrubbing and algorithm annotations
-- Saved solves and timing statistics
-- Puzzle definition API
-- 2×2 and Pyraminx studies
+## Credits, license and pointers
+
+Built with React, Three.js, Vite, Lucide, and `rubiks-cube-solver`. No source license file is present.
+
+[Full setup, original notes, and project history](README-DETAILS.md).
