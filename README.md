@@ -1,5 +1,7 @@
 <h1 align="center">TwistLab</h1>
 
+[Portfolio case study](https://ompatnaik.com/projects/twistlab/) · [Live cube simulator](https://ompatnaik.com/TwistLab/)
+
 **Play an algorithm on a 3×3 cube and turn the current scramble into a guided solving lesson.**
 
 [Demo or published artifacts](https://ompatnaik.com/TwistLab/)
